@@ -8,6 +8,7 @@ import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
@@ -33,6 +34,7 @@ import org.springframework.web.bind.annotation.RestController;
     })
 public class SqlInjectionLesson6a implements AssignmentEndpoint {
   private final LessonDataSource dataSource;
+  private Connection results;
   private static final String YOUR_QUERY_WAS = "<br> Your query was: ";
 
   public SqlInjectionLesson6a(LessonDataSource dataSource) {
@@ -45,33 +47,57 @@ public class SqlInjectionLesson6a implements AssignmentEndpoint {
     return injectableQuery(userId);
     // The answer: Smith' union select userid,user_name, password,cookie,cookie, cookie,userid from
     // user_system_data --
-  }
+}
 
-  public AttackResult injectableQuery(String accountName) {
-    String query = "";
+public AttackResult injectableQuery(String accountName) {
+    String query = "SELECT * FROM user_data WHERE last_name = ?";
     try (Connection connection = dataSource.getConnection()) {
-      boolean usedUnion = this.unionQueryChecker(accountName);
-      query = "SELECT * FROM user_data WHERE last_name = '" + accountName + "'";
 
-      return executeSqlInjection(connection, query, usedUnion);
+        // Keep the union checker if the lesson logic still needs to know this
+        boolean usedUnion = this.unionQueryChecker(accountName);
+
+        try (PreparedStatement ps = connection.prepareStatement(
+                query,
+                ResultSet.TYPE_SCROLL_INSENSITIVE,
+                ResultSet.CONCUR_READ_ONLY)) {
+
+            ps.setString(1, accountName);
+
+            try (ResultSet results = ps.executeQuery()) {
+                // This helper mimics your existing executeSqlInjection(...) behavior
+                return buildAttackResult(results, usedUnion, query);
+            }
+        }
     } catch (Exception e) {
-      return failed(this)
-          .output(this.getClass().getName() + " : " + e.getMessage() + YOUR_QUERY_WAS + query)
-          .build();
+        return failed(this)
+            .output(this.getClass().getName() + " : " + e.getMessage() + YOUR_QUERY_WAS + query)
+            .build();
     }
-  }
+}
 
-  private boolean unionQueryChecker(String accountName) {
-    return accountName.matches("(?i)(^[^-/*;)]*)(\\s*)UNION(.*$)");
-  }
+private boolean unionQueryChecker(String accountName) {
+    return accountName.matches("(?i)(^[^-/*;)]*)(\s*)UNION(.*$)");
+}
 
-  private AttackResult executeSqlInjection(Connection connection, String query, boolean usedUnion) {
-    try (Statement statement =
-        connection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY)) {
+// New helper that replaces executeSqlInjection(...) while using the ResultSet
+private AttackResult buildAttackResult(ResultSet results, boolean usedUnion, String query) throws SQLException {
+    // Adapt this to whatever your original executeSqlInjection(...) did:
+    // - Inspect rows/columns
+    // - Check for presence of sensitive data
+    // - Decide success/failure
+    if (usedUnion && results != null && results.last() && results.getRow() > 0) {
+        return success(this)
+            .output("Well done, your query returned " + results.getRow() + " rows.")
+            .build();
+    }
 
-      ResultSet results = statement.executeQuery(query);
+    return failed(this)
+        .output("No results for that last name. YOUR QUERY WAS: " + query)
+        .build();
+}
 
       if (!((results != null) && results.first())) {
+        String query;
         return failed(this)
             .feedback("sql-injection.advanced.6a.no.results")
             .output(YOUR_QUERY_WAS + query)
