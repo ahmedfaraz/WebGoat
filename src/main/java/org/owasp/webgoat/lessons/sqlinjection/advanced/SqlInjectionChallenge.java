@@ -20,16 +20,15 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@AssignmentHints(
-    value = {
-      "SqlInjectionChallenge1",
-      "SqlInjectionChallenge2",
-      "SqlInjectionChallenge3",
-      "SqlInjectionChallenge4",
-      "SqlInjectionChallenge5",
-      "SqlInjectionChallenge6",
-      "SqlInjectionChallenge7"
-    })
+@AssignmentHints(value = {
+    "SqlInjectionChallenge1",
+    "SqlInjectionChallenge2",
+    "SqlInjectionChallenge3",
+    "SqlInjectionChallenge4",
+    "SqlInjectionChallenge5",
+    "SqlInjectionChallenge6",
+    "SqlInjectionChallenge7"
+})
 @Slf4j
 public class SqlInjectionChallenge implements AssignmentEndpoint {
 
@@ -46,32 +45,52 @@ public class SqlInjectionChallenge implements AssignmentEndpoint {
       @RequestParam("username_reg") String username,
       @RequestParam("email_reg") String email,
       @RequestParam("password_reg") String password) {
+
     AttackResult attackResult = checkArguments(username, email, password);
 
     if (attackResult == null) {
 
       try (Connection connection = dataSource.getConnection()) {
-        String checkUserQuery =
-            "select userid from sql_challenge_users where userid = '" + username + "'";
-        Statement statement = connection.createStatement();
-        ResultSet resultSet = statement.executeQuery(checkUserQuery);
 
-        if (resultSet.next()) {
-          attackResult = failed(this).feedback("user.exists").feedbackArgs(username).build();
-        } else {
-          PreparedStatement preparedStatement =
-              connection.prepareStatement("INSERT INTO sql_challenge_users VALUES (?, ?, ?)");
-          preparedStatement.setString(1, username);
-          preparedStatement.setString(2, email);
-          preparedStatement.setString(3, password);
-          preparedStatement.execute();
-          attackResult =
-              informationMessage(this).feedback("user.created").feedbackArgs(username).build();
+        // FIX: use a parameterized query instead of string concatenation
+        String checkUserQuery = "select userid from sql_challenge_users where userid = ?";
+
+        try (PreparedStatement checkUserStmt = connection.prepareStatement(checkUserQuery)) {
+          checkUserStmt.setString(1, username);
+
+          try (ResultSet resultSet = checkUserStmt.executeQuery()) {
+
+            if (resultSet.next()) {
+              // User already exists (unchanged behaviour)
+              attackResult = failed(this)
+                  .feedback("user.exists")
+                  .feedbackArgs(username)
+                  .build();
+            } else {
+              // Insert new user (unchanged except for using try-with-resources)
+              try (PreparedStatement preparedStatement = connection.prepareStatement(
+                  "INSERT INTO sql_challenge_users VALUES (?, ?, ?)")) {
+                preparedStatement.setString(1, username);
+                preparedStatement.setString(2, email);
+                preparedStatement.setString(3, password);
+                preparedStatement.execute();
+              }
+
+              attackResult = informationMessage(this)
+                  .feedback("user.created")
+                  .feedbackArgs(username)
+                  .build();
+            }
+          }
         }
+
       } catch (SQLException e) {
-        attackResult = failed(this).output("Something went wrong").build();
+        attackResult = failed(this)
+            .output("Something went wrong")
+            .build();
       }
     }
+
     return attackResult;
   }
 
