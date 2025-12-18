@@ -16,10 +16,9 @@
         </div>
         <div class="lessonTitle">
         </div>
-
     </header>
-    <section class="main-content-wrapper">
 
+    <section class="main-content-wrapper">
         <section id="main-content">
             <div th:if="${param.error}">
                 <p th:text="#{invalid_username_password}">Invalid username and password.</p>
@@ -28,31 +27,49 @@
                 <p th:text="#{logged_out}">You've been logged out successfully.</p>
             </div>
             <br/><br/>
-            <form th:action="@{/login}" method='POST' style="width: 200px;">
+
+            <!-- CHANGE 1: CSRF token added to the login form -->
+            <form th:action="@{/login}" method="POST" style="width: 200px;">
+                <!-- CSRF hidden field -->
+                <input type="hidden"
+                       th:name="${_csrf.parameterName}"
+                       th:value="${_csrf.token}"/>
+
                 <div class="form-group">
                     <label for="exampleInputEmail1" th:text="#{username}">Username</label>
-                    <input autofocus="dummy_for_thymeleaf_parser" type="text" class="form-control"
-                           id="exampleInputEmail1" th:placeholder="#{username}" name='username' />
+                    <input autofocus="dummy_for_thymeleaf_parser"
+                           type="text"
+                           class="form-control"
+                           id="exampleInputEmail1"
+                           th:placeholder="#{username}"
+                           name="username"/>
                 </div>
                 <div class="form-group">
                     <label for="exampleInputPassword1" th:text="#{password}">Password</label>
-                    <input type="password" class="form-control" id="exampleInputPassword1" th:placeholder="#{password}"
-                           name='password' />
+                    <input type="password"
+                           class="form-control"
+                           id="exampleInputPassword1"
+                           th:placeholder="#{password}"
+                           name="password"/>
                 </div>
-                <button class="btn btn-primary btn-block" type="submit" th:text="#{sign.in}">Sign in</button>
-                <div class="text-center"><a th:href="@{/registration}" th:text="#{register.new}"></a></div>
+                <button class="btn btn-primary btn-block"
+                        type="submit"
+                        th:text="#{sign.in}">Sign in</button>
+                <div class="text-center">
+                    <a th:href="@{/registration}" th:text="#{register.new}"></a>
+                </div>
             </form>
+            <!-- END CHANGE 1 -->
+
             <br/><br/>
             <div th:if="${oauth}">
-            <h3 class="form-signin-heading">Login with OAuth 2.0</h3>
+                <h3 class="form-signin-heading">Login with OAuth 2.0</h3>
                 <table class="table table-striped">
-                    <tr><td></tr><a href="oauth2/authorization/github">GitHub</a></td></tr>
+                    <tr><td><a href="oauth2/authorization/github">GitHub</a></td></tr>
                 </table>
             </div>
         </section>
     </section>
 </section>
-
-
 </body>
 </html>
